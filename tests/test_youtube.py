@@ -2,7 +2,7 @@ import pytest
 from yt_dlp.networking.exceptions import HTTPError, TransportError
 from yt_dlp.utils import DownloadError, ExtractorError
 
-from yt2sc import youtube
+from flipstream import youtube
 
 
 @pytest.mark.parametrize(

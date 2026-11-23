@@ -5,9 +5,9 @@ import pytest
 import redis
 from fastapi.testclient import TestClient
 
-from yt2sc import jobs, youtube
-from yt2sc.app import create_app
-from yt2sc.config import Settings
+from flipstream import jobs, youtube
+from flipstream.app import create_app
+from flipstream.config import Settings
 
 URL = "https://www.youtube.com/watch?v=abc"
 INFO = youtube.VideoInfo(

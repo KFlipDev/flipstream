@@ -19,7 +19,7 @@ class Settings:
     # The SMB share is mounted here (a CIFS volume in compose); MP3s go into
     # its share_subdir folder, which Spotify on the Mac reads as Local Files.
     share_root: Path = Path("/share")
-    share_subdir: str = "yt2sc"
+    share_subdir: str = "flipstream"
     # Per-job working files, deleted after save or failure.
     scratch_dir: Path = Path("/scratch")
 
@@ -30,12 +30,12 @@ class Settings:
     @classmethod
     def from_env(cls) -> "Settings":
         return cls(
-            version=os.environ.get("YT2SC_VERSION", "dev"),
+            version=os.environ.get("FLIPSTREAM_VERSION", "dev"),
             access_aud=os.environ.get("CF_ACCESS_AUD", ""),
             team_domain=os.environ.get("CF_TEAM_DOMAIN", "").removeprefix("https://").rstrip("/"),
-            auth_mode=os.environ.get("YT2SC_AUTH", "access"),
+            auth_mode=os.environ.get("FLIPSTREAM_AUTH", "access"),
             redis_url=os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
-            share_root=Path(os.environ.get("YT2SC_SHARE_ROOT", "/share")),
-            share_subdir=os.environ.get("YT2SC_SHARE_SUBDIR", "yt2sc"),
-            scratch_dir=Path(os.environ.get("YT2SC_SCRATCH", "/scratch")),
+            share_root=Path(os.environ.get("FLIPSTREAM_SHARE_ROOT", "/share")),
+            share_subdir=os.environ.get("FLIPSTREAM_SHARE_SUBDIR", "flipstream"),
+            scratch_dir=Path(os.environ.get("FLIPSTREAM_SCRATCH", "/scratch")),
         )

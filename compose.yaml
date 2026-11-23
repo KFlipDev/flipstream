@@ -1,8 +1,8 @@
-# yt2sc on dev-home-vm-yt2sc-01. The deploy script (deploy/yt2sc-deploy) copies
-# this file to /opt/yt2sc and writes /opt/yt2sc/.env from Bitwarden Secrets
+# Flipstream on dev-home-vm-flipstream-01. The deploy script (deploy/flipstream-deploy) copies
+# this file to /opt/flipstream and writes /opt/flipstream/.env from Bitwarden Secrets
 # Manager plus IMAGE_TAG. A deploy restarts web and worker; redis and
 # cloudflared keep running unless their own settings change.
-name: yt2sc
+name: flipstream
 
 x-hardening: &hardening
   read_only: true
@@ -13,7 +13,7 @@ x-hardening: &hardening
 
 services:
   web:
-    image: ghcr.io/kflipdev/yt2sc:${IMAGE_TAG:?IMAGE_TAG not set}
+    image: ghcr.io/kflipdev/flipstream:${IMAGE_TAG:?IMAGE_TAG not set}
     restart: unless-stopped
     <<: *hardening
     environment:
@@ -33,8 +33,8 @@ services:
       - redis
 
   worker:
-    image: ghcr.io/kflipdev/yt2sc:${IMAGE_TAG:?IMAGE_TAG not set}
-    command: ["python", "-m", "yt2sc.worker"]
+    image: ghcr.io/kflipdev/flipstream:${IMAGE_TAG:?IMAGE_TAG not set}
+    command: ["python", "-m", "flipstream.worker"]
     restart: unless-stopped
     <<: *hardening
     # tini as PID 1 passes docker's SIGTERM to the worker, which then finishes
@@ -81,7 +81,7 @@ services:
 volumes:
   # The Samba share on dev-home-lxc-share-01, mounted by Docker (kernel CIFS)
   # when a container that uses it starts. uid/gid 10001 is the image's app
-  # user. The SMB login comes from Bitwarden (project yt2sc) via .env.
+  # user. The SMB login comes from Bitwarden (project flipstream) via .env.
   share:
     driver: local
     driver_opts:

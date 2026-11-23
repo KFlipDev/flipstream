@@ -1,5 +1,5 @@
 # Build line: GitHub-hosted runners check every PR and build the image.
-# Deploy line: the self-hosted runner on dev-home-vm-yt2sc-01 deploys main.
+# Deploy line: the self-hosted runner on dev-home-vm-flipstream-01 deploys main.
 # Weekly rebuild: main again with the newest yt-dlp, tagged sha-<7>-rYYYYMMDD
 # and deployed, because YouTube changes break old yt-dlp releases.
 name: ci
@@ -79,7 +79,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          images: ghcr.io/kflipdev/yt2sc
+          images: ghcr.io/kflipdev/flipstream
           tags: |
             type=raw,value=${{ steps.vars.outputs.tag }}
             type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
@@ -105,15 +105,15 @@ jobs:
   deploy:
     # Only main deploys: a push (a merged PR), the weekly rebuild or a manual
     # run on main. Never a PR or a fork. The runner has only the label
-    # yt2sc-deploy (no default self-hosted labels), so no other job lands on it.
+    # flipstream-deploy (no default self-hosted labels), so no other job lands on it.
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: build
-    runs-on: [yt2sc-deploy]
+    runs-on: [flipstream-deploy]
     environment: production
     concurrency:
       group: deploy
       cancel-in-progress: false
     steps:
-      - run: sudo /usr/local/sbin/yt2sc-deploy "$GITHUB_SHA" "$TAG"
+      - run: sudo /usr/local/sbin/flipstream-deploy "$GITHUB_SHA" "$TAG"
         env:
           TAG: ${{ needs.build.outputs.tag }}

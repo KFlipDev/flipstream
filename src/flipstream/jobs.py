@@ -25,9 +25,9 @@ from yt_dlp.utils import DownloadError
 from . import media, youtube
 from .config import Settings
 
-log = logging.getLogger("yt2sc.jobs")
+log = logging.getLogger("flipstream.jobs")
 
-QUEUE = "yt2sc"
+QUEUE = "flipstream"
 RETRY = Retry(max=3, interval=[30, 120, 300])
 JOB_TIMEOUT = 3600  # seconds; a 2-hour mix takes a few minutes
 KEEP_RECORD = 7 * 24 * 3600  # how long the job page keeps working after the end
@@ -127,7 +127,7 @@ def _check_share(settings: Settings) -> Path:
     try:
         out = settings.output_dir
         out.mkdir(parents=True, exist_ok=True)
-        probe = out / ".yt2sc-write-test"
+        probe = out / ".flipstream-write-test"
         probe.write_bytes(b"ok")
         probe.unlink()
         return out

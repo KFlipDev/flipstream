@@ -1,0 +1,34 @@
+# yt2sc on dev-home-vm-yt2sc-01. The deploy script (deploy/yt2sc-deploy) copies
+# this file to /opt/yt2sc and writes /opt/yt2sc/.env from Bitwarden Secrets
+# Manager plus IMAGE_TAG. DEV-44 adds redis and worker.
+name: yt2sc
+
+services:
+  web:
+    image: ghcr.io/kflipdev/yt2sc:${IMAGE_TAG:?IMAGE_TAG not set}
+    restart: unless-stopped
+    environment:
+      CF_ACCESS_AUD: ${CF_ACCESS_AUD:?CF_ACCESS_AUD not set}
+      CF_TEAM_DOMAIN: ${CF_TEAM_DOMAIN:?CF_TEAM_DOMAIN not set}
+    # Loopback only: the deploy health check uses it; everyone else comes
+    # through cloudflared on the compose network.
+    ports:
+      - "127.0.0.1:8000:8000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.11.1
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?TUNNEL_TOKEN not set}
+    depends_on:
+      - web
+    security_opt:
+      - no-new-privileges:true

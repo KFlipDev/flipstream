@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# yt2sc-deploy <commit sha>
+#
+# Deploys one commit of KFlipDev/yt2sc on dev-home-vm-yt2sc-01 and rolls back
+# to the previous image if the new one doesn't pass its health check.
+#
+# Installed root-owned at /usr/local/sbin/yt2sc-deploy. The GitHub runner user
+# may run only this script with sudo (see deploy/sudoers), so a workflow on the
+# self-hosted runner can deploy but can't read the Bitwarden token or docker.
+#
+#   1. read secrets from Bitwarden Secrets Manager into /opt/yt2sc/.env
+#   2. fetch compose.yaml for that commit from GitHub
+#   3. docker compose pull + up -d with IMAGE_TAG=sha-<first 7>
+#   4. GET /healthz must answer with that version within 60 s
+#   5. on failure: compose up -d on the previous tag, exit 1
+set -euo pipefail
+
+SHA="${1:-}"
+[[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "usage: yt2sc-deploy <40-hex commit sha>" >&2; exit 2; }
+TAG="sha-${SHA:0:7}"
+
+REPO="KFlipDev/yt2sc"
+APP_DIR="/opt/yt2sc"
+CONF="/etc/yt2sc/deploy.conf"          # BWS_PROJECT_ID=<uuid>
+TOKEN_FILE="/etc/yt2sc/bws-token"      # machine-account access token, root 0600
+HEALTH_URL="http://127.0.0.1:8000/healthz"
+HEALTH_TRIES=30                        # x 2 s
+
+log() { printf '%s yt2sc-deploy: %s\n' "$(date -u +%FT%TZ)" "$*"; }
+
+exec 9>/run/yt2sc-deploy.lock
+flock -n 9 || { log "another deploy is running"; exit 1; }
+
+# shellcheck source=/dev/null
+source "$CONF"
+: "${BWS_PROJECT_ID:?BWS_PROJECT_ID missing from $CONF}"
+umask 077
+mkdir -p "$APP_DIR"
+cd "$APP_DIR"
+
+compose() { docker compose --project-directory "$APP_DIR" -f "$APP_DIR/compose.yaml" "$@"; }
+
+write_env() {  # write_env <image tag>: secrets fresh from Bitwarden + IMAGE_TAG
+  local tmp
+  tmp="$(mktemp "$APP_DIR/.env.XXXXXX")"
+  BWS_ACCESS_TOKEN="$(<"$TOKEN_FILE")" bws secret list "$BWS_PROJECT_ID" --output env >"$tmp"
+  printf 'IMAGE_TAG=%s\n' "$1" >>"$tmp"
+  mv "$tmp" "$APP_DIR/.env"
+}
+
+healthy() {  # healthy <image tag>
+  local i body
+  for ((i = 1; i <= HEALTH_TRIES; i++)); do
+    if body="$(curl -fsS --max-time 2 "$HEALTH_URL" 2>/dev/null)" \
+      && [[ "$(jq -r .version <<<"$body")" == "$1" ]]; then
+      log "healthy: $body"
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+PREV_TAG="$(cat "$APP_DIR/current-tag" 2>/dev/null || true)"
+log "deploying $TAG (previous: ${PREV_TAG:-none})"
+
+curl -fsSL --max-time 20 "https://raw.githubusercontent.com/$REPO/$SHA/compose.yaml" -o compose.yaml.new
+[[ -f compose.yaml ]] && cp compose.yaml compose.prev.yaml
+mv compose.yaml.new compose.yaml
+write_env "$TAG"
+
+if compose pull --quiet && compose up -d --remove-orphans && healthy "$TAG"; then
+  echo "$TAG" >current-tag
+  [[ -n "$PREV_TAG" ]] && echo "$PREV_TAG" >previous-tag
+  docker image prune -f --filter "until=168h" >/dev/null
+  log "deployed $TAG"
+  exit 0
+fi
+
+log "health check failed for $TAG"
+compose logs --tail 40 web || true
+if [[ -n "$PREV_TAG" ]]; then
+  log "rolling back to $PREV_TAG"
+  [[ -f compose.prev.yaml ]] && cp compose.prev.yaml compose.yaml
+  write_env "$PREV_TAG"
+  if compose up -d --remove-orphans && healthy "$PREV_TAG"; then
+    log "rolled back to $PREV_TAG"
+  else
+    log "ROLLBACK FAILED: $PREV_TAG is not healthy either"
+  fi
+else
+  log "no previous tag to roll back to"
+fi
+exit 1

@@ -1,0 +1,33 @@
+{% set labels = ["Waiting", "Download audio", "Encode MP3", "Save to share"] %}
+<p class="state" aria-live="polite">{{ job.state }}{% if job.retry_wait %} · retry {{ job.attempt - 1 }} of 3 coming up{% endif %}</p>
+{% if not job.finished %}
+<ol class="steps">
+  {% for label in labels %}
+  <li class="{{ 'now' if loop.index0 == job.step else ('past' if loop.index0 < job.step else '') }}">{{ label }}</li>
+  {% endfor %}
+</ol>
+{% if job.state == "downloading" and job.progress %}
+  <p>{{ job.progress.done_mb }} MB{% if job.progress.total_mb %} of {{ job.progress.total_mb }} MB{% endif %}</p>
+  {% if job.progress.total_mb %}<div class="bar"><span style="width: {{ (100 * job.progress.done_mb / job.progress.total_mb) | round | int }}%"></span></div>{% endif %}
+{% elif job.state in ("encoding", "saving") and job.progress is not none %}
+  <p>{{ job.progress }}%</p>
+  <div class="bar"><span style="width: {{ job.progress }}%"></span></div>
+{% elif job.state == "queued" %}
+  <p>{% if job.retry_wait %}The last try failed: {{ job.message }}. RQ tries again shortly.{% else %}Waiting for the worker; it runs one job at a time.{% endif %}</p>
+{% endif %}
+<p class="hint">You can close this page; the job keeps going.</p>
+{% elif job.state == "done" %}
+<div class="done">
+  <p><strong>Done.</strong> <code>{{ settings.share_subdir }}/{{ job.filename }}</code>{% if job.size_mb %} · {{ job.size_mb }} MB{% endif %}
+    is on the share; Spotify shows it under Local Files.</p>
+  <div class="actions">
+    <a class="button" href="/jobs/{{ job.id }}/mp3" download>Download MP3</a>
+    <a class="button ghost" href="/">Another mix</a>
+  </div>
+</div>
+{% else %}
+<div class="failed" role="alert">
+  <p><strong>Failed.</strong> {{ job.message or "No message." }}</p>
+</div>
+<div class="actions"><a class="button ghost" href="/">Start over</a></div>
+{% endif %}

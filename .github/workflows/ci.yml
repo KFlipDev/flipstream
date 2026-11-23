@@ -39,6 +39,8 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      # The media tests run the real ffmpeg (encode, tags, cover).
+      - run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg
       - run: pip install -e ".[dev]"
       - run: pytest -q
 
@@ -61,6 +63,9 @@ jobs:
           else
             echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
           fi
+          # Newest yt-dlp on PyPI: as a build arg it busts the cached layer
+          # whenever there is a new release.
+          echo "ytdlp=$(curl -fsSL https://pypi.org/pypi/yt-dlp/json | jq -er .info.version)" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -82,7 +87,9 @@ jobs:
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: VERSION=${{ steps.vars.outputs.tag }}
+          build-args: |
+            VERSION=${{ steps.vars.outputs.tag }}
+            YTDLP_VERSION=${{ steps.vars.outputs.ytdlp }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

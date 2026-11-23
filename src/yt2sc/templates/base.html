@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}yt2sc{% endblock %}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/KFlipDev/design-system@v1.3.1/vice-night.css">
+<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js"
+        integrity="sha384-2OatzQy1H+Zd/IIrjr1TcuDGqLXeHhbooAyJY1KdQMKnr4LZ22k31GBLdYKHmVjg"
+        crossorigin="anonymous"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0 16px 48px; background: var(--bg); color: var(--ink);
+         font-family: var(--f-body); line-height: 1.5; }
+  body::before { content: ""; display: block; height: 6px; margin: 0 -16px 32px;
+                 background: var(--sunset); }
+  header, main, footer { max-width: 760px; margin: 0 auto; }
+  header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+           margin-bottom: 20px; flex-wrap: wrap; }
+  .mark { font-family: var(--f-mark); letter-spacing: .2em; text-transform: uppercase;
+          color: var(--ink); font-size: 14px; text-decoration: none; }
+  .who { color: var(--muted); font-size: 13px; }
+  .card { background: var(--depth-3); border: 1px solid var(--line); border-radius: var(--r);
+          padding: 24px; }
+  h1 { font-family: var(--f-head); margin: 0 0 6px; font-size: 30px; line-height: 1.2; }
+  h1 .hot { background: var(--sunset); -webkit-background-clip: text; background-clip: text;
+            color: transparent; }
+  @media print { h1 .hot { background: none; color: var(--teal); } }
+  .lede { color: var(--muted); margin: 0 0 20px; }
+  label { display: block; font-weight: 600; margin: 16px 0 6px; }
+  .hint { font-weight: 400; color: var(--muted); font-size: 13px; }
+  input[type=text], input[type=url], textarea {
+    width: 100%; padding: 10px 12px; font: inherit; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--line); border-radius: var(--r); }
+  input:focus, textarea:focus, button:focus-visible, a:focus-visible {
+    outline: 3px solid var(--teal-bright); outline-offset: 1px; }
+  textarea { min-height: 120px; resize: vertical; }
+  button, .button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px;
+    font: 600 15px var(--f-body); border-radius: var(--r); cursor: pointer; text-decoration: none;
+    background: var(--ink); color: var(--bg); border: 1px solid var(--ink); }
+  .button.ghost { background: transparent; color: var(--ink); }
+  .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .row > .grow { flex: 1 1 260px; }
+  .error { border-left: 4px solid var(--block); background: var(--block-bg); color: var(--ink);
+           padding: 10px 14px; border-radius: var(--r); margin: 0 0 16px; }
+  .htmx-indicator { display: none; color: var(--muted); }
+  .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline; }
+  .htmx-request button { opacity: .6; pointer-events: none; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 24px; }
+  code { font-family: var(--f-mono); }
+</style>
+</head>
+<body>
+<header>
+  <a class="mark" href="/">yt2sc</a>
+  <span class="who">{% if email %}signed in as {{ email }}{% else %}local development{% endif %}</span>
+</header>
+<main>
+{# Page styles sit in body: htmx swaps body content only. #}
+<style>{% block style %}{% endblock %}</style>
+{% block main %}{% endblock %}
+</main>
+<footer>version <code>{{ version }}</code></footer>
+</body>
+</html>

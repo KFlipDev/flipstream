@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Check · yt2sc{% endblock %}
+{% block style %}
+  .review { display: grid; grid-template-columns: 220px 1fr; gap: 24px; }
+  @media (max-width: 640px) { .review { grid-template-columns: 1fr; } }
+  .art { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--r);
+         border: 1px solid var(--line); background: var(--depth-2); display: block; }
+  .art-cap { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+  fieldset { border: 1px solid var(--line); border-radius: var(--r); margin: 16px 0 0;
+             padding: 8px 14px 12px; }
+  legend { font-weight: 600; padding: 0 4px; }
+  .target { display: flex; gap: 10px; align-items: baseline; margin: 6px 0; }
+  .target.off { color: var(--muted); }
+  .tag { font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 0 8px;
+         color: var(--muted); }
+  .actions { margin-top: 20px; display: flex; gap: 12px; flex-wrap: wrap; }
+{% endblock %}
+{% block main %}
+<form class="card" method="post" action="/jobs">
+  <h1>Check the <span class="hot">details</span></h1>
+  <p class="lede">Prefilled from YouTube{% if info.duration %} · {{ '%d:%02d:%02d' % (info.duration // 3600, info.duration % 3600 // 60, info.duration % 60) }}{% endif %}.
+    The title is also the file name.</p>
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  <input type="hidden" name="url" value="{{ info.url }}">
+  <input type="hidden" name="thumbnail" value="{{ info.thumbnail }}">
+  <input type="hidden" name="duration" value="{{ info.duration }}">
+  <div class="review">
+    <div>
+      {% if info.thumbnail %}
+      <img class="art" src="{{ info.thumbnail }}" alt="Artwork: square crop of the video thumbnail">
+      {% else %}<div class="art" role="img" aria-label="No thumbnail"></div>{% endif %}
+      <p class="art-cap">Artwork: the middle square of the thumbnail.</p>
+    </div>
+    <div>
+      <label for="title">Title</label>
+      <input id="title" name="title" type="text" required maxlength="300" value="{{ info.title }}">
+      <label for="artist">Artist <span class="hint">from the channel name</span></label>
+      <input id="artist" name="artist" type="text" maxlength="200" value="{{ info.artist }}">
+      <label for="genre">Genre</label>
+      <input id="genre" name="genre" type="text" maxlength="100" value="{{ info.genre }}"
+             placeholder="House">
+      <label for="tags">Tags <span class="hint">comma-separated</span></label>
+      <input id="tags" name="tags" type="text" maxlength="500" value="{{ info.tags | join(', ') }}">
+    </div>
+  </div>
+  <label for="description">Description <span class="hint">saved as the MP3 comment</span></label>
+  <textarea id="description" name="description" maxlength="5000">{{ info.description }}</textarea>
+  <fieldset>
+    <legend>Save to</legend>
+    <div class="target"><input type="checkbox" checked disabled id="t-share">
+      <label for="t-share" style="margin:0">Share folder <code>{{ settings.share_subdir }}/</code></label>
+      <span class="hint">Spotify Local Files reads it</span></div>
+    <div class="target"><input type="checkbox" checked disabled id="t-dl">
+      <label for="t-dl" style="margin:0">Download</label>
+      <span class="hint">a button on the done page, served from the share copy</span></div>
+    <div class="target off"><input type="checkbox" disabled id="t-sc">
+      <label for="t-sc" style="margin:0">SoundCloud</label>
+      <span class="tag">v1.1 · needs SoundCloud Artist Pro</span></div>
+  </fieldset>
+  <div class="actions">
+    <button type="submit">Save MP3</button>
+    <a class="button ghost" href="/">Start over</a>
+  </div>
+</form>
+{% endblock %}

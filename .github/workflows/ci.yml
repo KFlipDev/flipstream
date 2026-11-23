@@ -88,10 +88,11 @@ jobs:
 
   deploy:
     # Only main deploys, and only from a push (a merged PR), never from a PR
-    # or a fork. The runner has the label yt2sc-deploy and only runs this job.
+    # or a fork. The runner has only the label yt2sc-deploy (no default
+    # self-hosted labels), so no other job can land on it.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
-    runs-on: [self-hosted, linux, yt2sc-deploy]
+    runs-on: [yt2sc-deploy]
     environment: production
     concurrency:
       group: deploy

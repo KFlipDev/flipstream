@@ -1,0 +1,38 @@
+[project]
+name = "yt2sc"
+version = "0.1.0"
+description = "Paste a YouTube DJ-mix URL, review the metadata, get a tagged MP3."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.165,<1",
+    "uvicorn[standard]>=0.54,<1",
+    "pyjwt[crypto]>=2.15,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "httpx>=0.28,<1",
+    "pytest>=9.2,<10",
+    "ruff>=0.17,<0.18",
+]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

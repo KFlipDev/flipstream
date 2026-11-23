@@ -1,26 +1,71 @@
 # yt2sc on dev-home-vm-yt2sc-01. The deploy script (deploy/yt2sc-deploy) copies
 # this file to /opt/yt2sc and writes /opt/yt2sc/.env from Bitwarden Secrets
-# Manager plus IMAGE_TAG. DEV-44 adds redis and worker.
+# Manager plus IMAGE_TAG. A deploy restarts web and worker; redis and
+# cloudflared keep running unless their own settings change.
 name: yt2sc
+
+x-hardening: &hardening
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
 
 services:
   web:
     image: ghcr.io/kflipdev/yt2sc:${IMAGE_TAG:?IMAGE_TAG not set}
     restart: unless-stopped
+    <<: *hardening
     environment:
       CF_ACCESS_AUD: ${CF_ACCESS_AUD:?CF_ACCESS_AUD not set}
       CF_TEAM_DOMAIN: ${CF_TEAM_DOMAIN:?CF_TEAM_DOMAIN not set}
+      REDIS_URL: redis://redis:6379/0
     # Loopback only: the deploy health check uses it; everyone else comes
     # through cloudflared on the compose network.
     ports:
       - "127.0.0.1:8000:8000"
-    read_only: true
     tmpfs:
       - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
+    volumes:
+      # Read-only: web only serves the MP3 for the Download button.
+      - share:/share:ro
+    depends_on:
+      - redis
+
+  worker:
+    image: ghcr.io/kflipdev/yt2sc:${IMAGE_TAG:?IMAGE_TAG not set}
+    command: ["python", "-m", "yt2sc.worker"]
+    restart: unless-stopped
+    <<: *hardening
+    # tini as PID 1 passes docker's SIGTERM to the worker, which then finishes
+    # the running job before it exits (RQ warm shutdown). A deploy waits for
+    # that, up to the job timeout plus a margin.
+    init: true
+    stop_grace_period: 65m
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    healthcheck:
+      disable: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - share:/share
+      - scratch:/scratch
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:8.6.8-alpine
+    restart: unless-stopped
+    # Start as the image's redis user, so the entrypoint needs no chown or
+    # user switch (cap_drop ALL leaves it no rights for either).
+    user: redis
+    <<: *hardening
+    # The queue and job records only: nothing worth persisting across a VM
+    # reboot, so no snapshots and no append-only file.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    tmpfs:
+      - /data
 
   cloudflared:
     image: cloudflare/cloudflared:2026.11.1
@@ -32,3 +77,15 @@ services:
       - web
     security_opt:
       - no-new-privileges:true
+
+volumes:
+  # The Samba share on dev-home-lxc-share-01, mounted by Docker (kernel CIFS)
+  # when a container that uses it starts. uid/gid 10001 is the image's app
+  # user. The SMB login comes from Bitwarden (project yt2sc) via .env.
+  share:
+    driver: local
+    driver_opts:
+      type: cifs
+      device: "//10.20.30.88/share"
+      o: "username=${SHARE_USER:?SHARE_USER not set},password=${SHARE_PASSWORD:?SHARE_PASSWORD not set},vers=3.1.1,uid=10001,gid=10001,file_mode=0664,dir_mode=0775,soft,nobrl"
+  scratch:

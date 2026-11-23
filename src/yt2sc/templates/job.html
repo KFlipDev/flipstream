@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ job.title }} · yt2sc{% endblock %}
+{% block style %}
+  .steps { list-style: none; padding: 0; margin: 20px 0; display: grid;
+           grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .steps li { border-top: 4px solid var(--line); padding-top: 6px; font-size: 13px;
+              color: var(--muted); }
+  .steps li.now { border-color: var(--teal-bright); color: var(--ink); font-weight: 600; }
+  .steps li.past { border-color: var(--teal); color: var(--ink); }
+  .bar { height: 10px; background: var(--depth-2); border-radius: 999px; overflow: hidden; }
+  .bar span { display: block; height: 100%; background: var(--teal-bright); }
+  .state { font-family: var(--f-mono); font-size: 13px; color: var(--teal); }
+  .done { border: 1px solid var(--pink-bright); background: var(--pink-tint); border-radius: var(--r);
+          padding: 16px; margin-top: 16px; }
+  .done strong { color: var(--pink); }
+  .failed { border-left: 4px solid var(--block); background: var(--block-bg); padding: 12px 16px;
+            border-radius: var(--r); margin-top: 16px; }
+  .actions { margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap; }
+{% endblock %}
+{% block main %}
+<section class="card">
+  <h1>{{ job.title }}</h1>
+  <div id="status" {% if not job.finished %}hx-get="/jobs/{{ job.id }}/status" hx-trigger="every 2s"
+       hx-swap="innerHTML"{% endif %}>
+    {% include "_status.html" %}
+  </div>
+</section>
+{% endblock %}

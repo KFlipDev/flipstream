@@ -1,6 +1,6 @@
 [project]
 name = "yt2sc"
-version = "0.1.0"
+version = "1.0.0"
 description = "Paste a YouTube DJ-mix URL, review the metadata, get a tagged MP3."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -8,10 +8,18 @@ dependencies = [
     "fastapi>=0.165,<1",
     "uvicorn[standard]>=0.54,<1",
     "pyjwt[crypto]>=2.15,<3",
+    "jinja2>=3.1,<4",
+    "python-multipart>=0.0.34",
+    "redis>=8.1,<9",
+    "rq>=3.0,<4",
+    # Unpinned on purpose: the image installs the newest release at build time,
+    # and a weekly rebuild keeps it current (YouTube changes often).
+    "yt-dlp[default]>=2026.10.26",
 ]
 
 [project.optional-dependencies]
 dev = [
+    "fakeredis>=2.40,<3",
     "httpx>=0.28,<1",
     "pytest>=9.2,<10",
     "ruff>=0.17,<0.18",
@@ -24,6 +32,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+yt2sc = ["templates/*.html"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
@@ -32,7 +43,7 @@ target-version = "py312"
 select = ["E", "F", "I", "B", "UP", "S"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101"]
+"tests/*" = ["S101", "S603", "S607"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

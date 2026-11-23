@@ -1,15 +1,35 @@
-# yt2sc web image. DEV-44 adds the worker (yt-dlp, ffmpeg) to this image.
+# yt2sc image: web (uvicorn) and worker (python -m yt2sc.worker) share it.
+FROM denoland/deno:bin-2.9.8 AS deno
+
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DENO_DIR=/tmp/deno \
+    DENO_NO_UPDATE_CHECK=1
+
+# ffmpeg: MP3 encoding and the cover crop. deno: the JavaScript runtime yt-dlp
+# needs for YouTube (with the yt-dlp-ejs package from yt-dlp[default]).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/*
+COPY --from=deno /deno /usr/local/bin/deno
 
 WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install . && useradd --system --uid 10001 --no-create-home app
+# /scratch belongs to app so the named volume mounted there starts out writable.
+RUN pip install . \
+ && groupadd --system --gid 10001 app \
+ && useradd --system --uid 10001 --gid app --no-create-home app \
+ && install -d -o app -g app /scratch
+
+# CI passes the newest yt-dlp release, so this layer rebuilds whenever there is
+# a new one even when the layers above come from cache.
+ARG YTDLP_VERSION=
+RUN pip install --upgrade "yt-dlp[default]${YTDLP_VERSION:+==$YTDLP_VERSION}"
 
 # Set by CI to the image tag (sha-xxxxxxx or vX.Y.Z); /healthz reports it so the
 # deploy job can tell the new image is the one answering.

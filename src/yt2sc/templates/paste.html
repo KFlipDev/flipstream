@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block main %}
+<form class="card" method="post" action="/review" hx-post="/review" hx-target="body"
+      hx-push-url="false" hx-indicator="#looking">
+  <h1>Mix to <span class="hot">MP3</span></h1>
+  <p class="lede">Paste the YouTube link of a DJ mix. yt2sc reads its details (nothing is
+    downloaded yet) so you can check them before the MP3 is made.</p>
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  <div class="row">
+    <div class="grow">
+      <label for="url">YouTube link</label>
+      <input id="url" name="url" type="url" required autofocus value="{{ url }}"
+             placeholder="https://www.youtube.com/watch?v=…">
+    </div>
+    <button type="submit">Fetch details</button>
+  </div>
+  <p id="looking" class="htmx-indicator">Asking YouTube for the details…</p>
+</form>
+{% endblock %}

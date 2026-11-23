@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# yt2sc-deploy <commit sha>
+# yt2sc-deploy <commit sha> [image tag]
 #
 # Deploys one commit of KFlipDev/yt2sc on dev-home-vm-yt2sc-01 and rolls back
 # to the previous image if the new one doesn't pass its health check.
@@ -10,14 +10,16 @@
 #
 #   1. read secrets from Bitwarden Secrets Manager into /opt/yt2sc/.env
 #   2. fetch compose.yaml for that commit from GitHub
-#   3. docker compose pull + up -d with IMAGE_TAG=sha-<first 7>
+#   3. docker compose pull + up -d with IMAGE_TAG=sha-<first 7>, or the tag
+#      given (the weekly rebuild's sha-<first 7>-rYYYYMMDD)
 #   4. GET /healthz must answer with that version within 60 s
 #   5. on failure: compose up -d on the previous tag, exit 1
 set -euo pipefail
 
 SHA="${1:-}"
-[[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "usage: yt2sc-deploy <40-hex commit sha>" >&2; exit 2; }
-TAG="sha-${SHA:0:7}"
+[[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "usage: yt2sc-deploy <40-hex commit sha> [image tag]" >&2; exit 2; }
+TAG="${2:-sha-${SHA:0:7}}"
+[[ "$TAG" =~ ^sha-${SHA:0:7}(-r[0-9]{8})?$ ]] || { echo "image tag must be sha-${SHA:0:7} or sha-${SHA:0:7}-rYYYYMMDD" >&2; exit 2; }
 
 REPO="KFlipDev/yt2sc"
 APP_DIR="/opt/yt2sc"

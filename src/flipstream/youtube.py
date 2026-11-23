@@ -15,7 +15,7 @@ import yt_dlp
 from yt_dlp.networking.exceptions import HTTPError, TransportError
 from yt_dlp.utils import DownloadError, ExtractorError
 
-log = logging.getLogger("yt2sc.youtube")
+log = logging.getLogger("flipstream.youtube")
 
 YOUTUBE_HOSTS = {
     "youtube.com",

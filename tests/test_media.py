@@ -3,7 +3,7 @@ import subprocess
 
 import pytest
 
-from yt2sc import media
+from flipstream import media
 
 from .conftest import needs_ffmpeg
 

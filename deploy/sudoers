@@ -1,4 +1,4 @@
-# /etc/sudoers.d/yt2sc-deploy (root 0440). The GitHub runner user may run the
+# /etc/sudoers.d/flipstream-deploy (root 0440). The GitHub runner user may run the
 # deploy script as root, with any arguments (the script validates them), and
 # nothing else.
-gha-runner ALL=(root) NOPASSWD: /usr/local/sbin/yt2sc-deploy
+gha-runner ALL=(root) NOPASSWD: /usr/local/sbin/flipstream-deploy

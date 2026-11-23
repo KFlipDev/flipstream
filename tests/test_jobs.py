@@ -10,16 +10,16 @@ from rq.job import JobStatus
 from yt_dlp.networking.exceptions import TransportError
 from yt_dlp.utils import DownloadError, ExtractorError
 
-from yt2sc import jobs, media
-from yt2sc.config import Settings
+from flipstream import jobs, media
+from flipstream.config import Settings
 
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     share, scratch = tmp_path / "share", tmp_path / "scratch"
     share.mkdir()
-    monkeypatch.setenv("YT2SC_SHARE_ROOT", str(share))
-    monkeypatch.setenv("YT2SC_SCRATCH", str(scratch))
+    monkeypatch.setenv("FLIPSTREAM_SHARE_ROOT", str(share))
+    monkeypatch.setenv("FLIPSTREAM_SCRATCH", str(scratch))
     settings = Settings.from_env()
     return settings, fakeredis.FakeStrictRedis()
 

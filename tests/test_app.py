@@ -6,9 +6,9 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 
-from yt2sc.app import create_app
-from yt2sc.auth import HEADER, AccessVerifier
-from yt2sc.config import Settings
+from flipstream.app import create_app
+from flipstream.auth import HEADER, AccessVerifier
+from flipstream.config import Settings
 
 TEAM = "example.cloudflareaccess.com"
 AUD = "test-aud-tag"

@@ -1,4 +1,4 @@
-"""yt2sc web app: paste form, review form, job page, MP3 download.
+"""Flipstream web app: paste form, review form, job page, MP3 download.
 
 Server-rendered templates; the job page polls its status fragment with htmx.
 Every page but /healthz needs a valid Cloudflare Access JWT.
@@ -31,7 +31,7 @@ def create_app(
     lookup: Lookup = youtube.lookup,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
-    app = FastAPI(title="yt2sc", version=settings.version, docs_url=None, redoc_url=None)
+    app = FastAPI(title="Flipstream", version=settings.version, docs_url=None, redoc_url=None)
     conn = conn or redis.Redis.from_url(
         settings.redis_url, socket_timeout=5, socket_connect_timeout=2
     )

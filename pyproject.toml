@@ -1,5 +1,5 @@
 [project]
-name = "yt2sc"
+name = "flipstream"
 version = "1.0.0"
 description = "Paste a YouTube DJ-mix URL, review the metadata, get a tagged MP3."
 readme = "README.md"
@@ -33,7 +33,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-yt2sc = ["templates/*.html"]
+flipstream = ["templates/*.html"]
 
 [tool.ruff]
 line-length = 100

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# yt2sc-deploy <commit sha> [image tag]
+# flipstream-deploy <commit sha> [image tag]
 #
-# Deploys one commit of KFlipDev/yt2sc on dev-home-vm-yt2sc-01 and rolls back
+# Deploys one commit of KFlipDev/flipstream on dev-home-vm-flipstream-01 and rolls back
 # to the previous image if the new one doesn't pass its health check.
 #
-# Installed root-owned at /usr/local/sbin/yt2sc-deploy. The GitHub runner user
+# Installed root-owned at /usr/local/sbin/flipstream-deploy. The GitHub runner user
 # may run only this script with sudo (see deploy/sudoers), so a workflow on the
 # self-hosted runner can deploy but can't read the Bitwarden token or docker.
 #
-#   1. read secrets from Bitwarden Secrets Manager into /opt/yt2sc/.env
+#   1. read secrets from Bitwarden Secrets Manager into /opt/flipstream/.env
 #   2. fetch compose.yaml for that commit from GitHub
 #   3. docker compose pull + up -d with IMAGE_TAG=sha-<first 7>, or the tag
 #      given (the weekly rebuild's sha-<first 7>-rYYYYMMDD)
@@ -17,20 +17,20 @@
 set -euo pipefail
 
 SHA="${1:-}"
-[[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "usage: yt2sc-deploy <40-hex commit sha> [image tag]" >&2; exit 2; }
+[[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "usage: flipstream-deploy <40-hex commit sha> [image tag]" >&2; exit 2; }
 TAG="${2:-sha-${SHA:0:7}}"
 [[ "$TAG" =~ ^sha-${SHA:0:7}(-r[0-9]{8})?$ ]] || { echo "image tag must be sha-${SHA:0:7} or sha-${SHA:0:7}-rYYYYMMDD" >&2; exit 2; }
 
-REPO="KFlipDev/yt2sc"
-APP_DIR="/opt/yt2sc"
-CONF="/etc/yt2sc/deploy.conf"          # BWS_PROJECT_ID=<uuid>
-TOKEN_FILE="/etc/yt2sc/bws-token"      # machine-account access token, root 0600
+REPO="KFlipDev/flipstream"
+APP_DIR="/opt/flipstream"
+CONF="/etc/flipstream/deploy.conf"          # BWS_PROJECT_ID=<uuid>
+TOKEN_FILE="/etc/flipstream/bws-token"      # machine-account access token, root 0600
 HEALTH_URL="http://127.0.0.1:8000/healthz"
 HEALTH_TRIES=30                        # x 2 s
 
-log() { printf '%s yt2sc-deploy: %s\n' "$(date -u +%FT%TZ)" "$*"; }
+log() { printf '%s flipstream-deploy: %s\n' "$(date -u +%FT%TZ)" "$*"; }
 
-exec 9>/run/yt2sc-deploy.lock
+exec 9>/run/flipstream-deploy.lock
 flock -n 9 || { log "another deploy is running"; exit 1; }
 
 # shellcheck source=/dev/null

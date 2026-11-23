@@ -1,4 +1,4 @@
-"""The RQ worker: `python -m yt2sc.worker`.
+"""The RQ worker: `python -m flipstream.worker`.
 
 One worker process, so one job at a time. The scheduler runs inside it, which
 RQ needs for retries with a wait between tries. On SIGTERM (docker stop, a

@@ -82,16 +82,36 @@ def square_cover(thumbnail: Path, out: Path) -> Path:
     return out
 
 
-def encode_cmd(audio: Path, cover: Path | None, tags: Tags, out: Path) -> list[str]:
-    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", str(audio)]
+FFMPEG = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y"]
+
+
+def encode_cmd(audio: Path, out: Path) -> list[str]:
+    """Build the ffmpeg command that encodes the audio to an MP3, with no tags or cover.
+
+    The cover is added afterwards by tag_cmd. With the cover in this same pass,
+    ffmpeg 7 reports progress from the one-frame cover stream, so the progress
+    stopped at the first 40 ms (DEV-53).
+    """
+    cmd = FFMPEG + ["-i", str(audio), "-map", "0:a:0", "-map_metadata", "-1"]
+    # V0: LAME's best VBR setting, about 245 kbit/s.
+    cmd += ["-c:a", "libmp3lame", "-q:a", "0"]
+    cmd += ["-progress", "pipe:1", "-nostats", str(out)]
+    return cmd
+
+
+def tag_cmd(mp3: Path, cover: Path | None, tags: Tags, out: Path) -> list[str]:
+    """Build the ffmpeg command that writes the tags and the cover into an MP3.
+
+    The audio is copied as it is, not encoded again, so this takes seconds.
+    """
+    cmd = FFMPEG + ["-i", str(mp3)]
     if cover:
-        cmd += ["-i", str(cover), "-map", "0:a:0", "-map", "1:v:0", "-c:v", "copy"]
+        cmd += ["-i", str(cover), "-map", "0:a:0", "-map", "1:v:0"]
         cmd += ["-disposition:v:0", "attached_pic"]
         cmd += ["-metadata:s:v", "title=Album cover", "-metadata:s:v", "comment=Cover (front)"]
     else:
         cmd += ["-map", "0:a:0"]
-    # V0: LAME's best VBR setting, about 245 kbit/s.
-    cmd += ["-c:a", "libmp3lame", "-q:a", "0", "-map_metadata", "-1"]
+    cmd += ["-c", "copy", "-map_metadata", "-1"]
     # ID3v2.3: the version Spotify and macOS read most reliably.
     cmd += ["-id3v2_version", "3", "-write_id3v1", "1"]
     meta = {
@@ -106,7 +126,7 @@ def encode_cmd(audio: Path, cover: Path | None, tags: Tags, out: Path) -> list[s
     for key, value in meta.items():
         if value:
             cmd += ["-metadata", f"{key}={value}"]
-    cmd += ["-progress", "pipe:1", "-nostats", str(out)]
+    cmd.append(str(out))
     return cmd
 
 
@@ -118,7 +138,14 @@ def encode_mp3(
     duration: float,
     progress: ProgressFn | None = None,
 ) -> Path:
+    """Encode the audio to a tagged MP3 with its cover, and return the output path.
+
+    Two ffmpeg passes: encode the audio (with progress), then add the tags and
+    cover. progress is called with the fraction done, from 0.0 to 1.0.
+    """
+
     def on_line(line: str) -> None:
+        """Turn ffmpeg's "out_time_us=" progress lines into a fraction of the duration."""
         if progress and duration > 0 and line.startswith("out_time_us="):
             try:
                 done = int(line.split("=", 1)[1]) / 1_000_000
@@ -126,7 +153,10 @@ def encode_mp3(
                 return
             progress(min(done / duration, 1.0))
 
-    _run(encode_cmd(audio, cover, tags, out), on_line)
+    untagged = out.with_name(out.stem + ".untagged.mp3")
+    _run(encode_cmd(audio, untagged), on_line)
+    _run(tag_cmd(untagged, cover, tags, out))
+    untagged.unlink()
     return out
 
 

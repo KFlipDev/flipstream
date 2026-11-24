@@ -52,7 +52,7 @@ def fake_encode(audio, cover, tags, out, duration, progress=None):
 
 
 def raising(exc):
-    def _download(*a, **k):
+    def _download(*args, **kwargs):
         raise exc
 
     return _download
@@ -77,9 +77,9 @@ def test_job_saves_mp3_and_cleans_scratch(env, monkeypatch):
     assert jobs.view(conn, job.id).state == "queued"
     work(conn)
 
-    v = jobs.view(conn, job.id)
-    assert v.state == "done" and v.finished
-    assert v.filename == "Sunset Mix.mp3"
+    job_view = jobs.view(conn, job.id)
+    assert job_view.state == "done" and job_view.finished
+    assert job_view.filename == "Sunset Mix.mp3"
     assert (settings.output_dir / "Sunset Mix.mp3").read_bytes() == b"ID3Sunset: Mix"
     assert not any(settings.scratch_dir.iterdir())
     assert not list(settings.output_dir.glob("*.part"))
@@ -93,9 +93,9 @@ def test_network_error_is_retried(env, monkeypatch):
     job.refresh()
     assert job.get_status() == JobStatus.SCHEDULED
     assert job.retries_left == 2
-    v = jobs.view(conn, job.id)
-    assert v.state == "queued" and v.retry_wait and v.attempt == 2
-    assert "connection reset" in v.message
+    job_view = jobs.view(conn, job.id)
+    assert job_view.state == "queued" and job_view.retry_wait and job_view.attempt == 2
+    assert "connection reset" in job_view.message
 
 
 def test_missing_video_fails_without_retry(env, monkeypatch):
@@ -106,9 +106,9 @@ def test_missing_video_fails_without_retry(env, monkeypatch):
     work(conn)
     job.refresh()
     assert job.get_status() == JobStatus.FAILED
-    v = jobs.view(conn, job.id)
-    assert v.state == "failed"
-    assert "Video unavailable" in v.message
+    job_view = jobs.view(conn, job.id)
+    assert job_view.state == "failed"
+    assert "Video unavailable" in job_view.message
     assert not any(settings.scratch_dir.iterdir())
 
 
@@ -129,14 +129,14 @@ def test_ffmpeg_error_fails_without_retry(env, monkeypatch):
     _, conn = env
     monkeypatch.setattr(jobs, "_download", fake_download())
 
-    def broken(*a, **k):
+    def broken(*args, **kwargs):
         raise media.EncodeFailed("ffmpeg: Invalid data found when processing input")
 
     monkeypatch.setattr(media, "encode_mp3", broken)
     job = jobs.enqueue(conn, REQ)
     work(conn)
-    v = jobs.view(conn, job.id)
-    assert v.state == "failed" and "Invalid data" in v.message
+    job_view = jobs.view(conn, job.id)
+    assert job_view.state == "failed" and "Invalid data" in job_view.message
 
 
 def test_unknown_job_is_none(env):

@@ -7,6 +7,8 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class Settings:
+    """Everything the web app and the worker read from the environment."""
+
     version: str
     # Cloudflare Access: the application's AUD tag and the team domain,
     # for example "kflip.cloudflareaccess.com".
@@ -29,6 +31,7 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        """Read each setting from its environment variable, with a default if unset."""
         return cls(
             version=os.environ.get("FLIPSTREAM_VERSION", "dev"),
             access_aud=os.environ.get("CF_ACCESS_AUD", ""),

@@ -74,6 +74,8 @@ class TransientError(Exception):
 
 @dataclass
 class VideoInfo:
+    """What the review form shows about one video."""
+
     url: str
     video_id: str
     title: str
@@ -122,43 +124,51 @@ def check_url(url: str) -> str:
 
 
 def clean_message(msg: str) -> str:
+    """Strip color codes and the "ERROR: " prefix from a yt-dlp message."""
     msg = ANSI.sub("", str(msg)).strip()
     return msg.removeprefix("ERROR: ").strip()
 
 
 def is_transient(exc: BaseException) -> bool:
-    """True for network errors worth a retry; False for blocks, missing videos and the rest."""
+    """True for network errors worth a retry; False for blocks, missing videos and the rest.
+
+    yt-dlp wraps the real error inside its own, sometimes several layers deep, so
+    this walks through every wrapped error until it finds one it can judge.
+    """
     seen: set[int] = set()
     todo: list[BaseException | None] = [exc]
     while todo:
-        e = todo.pop()
-        if e is None or id(e) in seen:
+        error = todo.pop()
+        if error is None or id(error) in seen:
             continue
-        seen.add(id(e))
-        if isinstance(e, HTTPError):
+        seen.add(id(error))
+        if isinstance(error, HTTPError):
             # 5xx is YouTube having a bad minute. 403 and 429 are a block: a retry
             # 30 seconds later meets the same block.
-            return e.status >= 500
-        if isinstance(e, TransportError | ConnectionError | TimeoutError):
+            return error.status >= 500
+        if isinstance(error, TransportError | ConnectionError | TimeoutError):
             return True
-        if isinstance(e, DownloadError) and e.exc_info:
-            todo.append(e.exc_info[1])
-        if isinstance(e, ExtractorError):
-            todo.append(e.cause if isinstance(e.cause, BaseException) else None)
-        todo.extend([e.__cause__, e.__context__])
+        if isinstance(error, DownloadError) and error.exc_info:
+            todo.append(error.exc_info[1])
+        if isinstance(error, ExtractorError):
+            todo.append(error.cause if isinstance(error.cause, BaseException) else None)
+        todo.extend([error.__cause__, error.__context__])
     return False
 
 
 def guess_genre(tags: list[str], title: str) -> str:
-    haystacks = [t.lower() for t in tags] + [title.lower()]
+    """Return the first genre from GENRES found in the tags or the title, or ""."""
+    searched_texts = [tag.lower() for tag in tags] + [title.lower()]
     for genre in GENRES:
+        # Whole words only, so "house" does not match "housewarming".
         pattern = re.compile(rf"(?<![\w]){re.escape(genre)}(?![\w])")
-        if any(pattern.search(h) for h in haystacks):
+        if any(pattern.search(text) for text in searched_texts):
             return GENRE_LABELS.get(genre, genre.title())
     return ""
 
 
 def to_video_info(url: str, info: dict[str, Any]) -> VideoInfo:
+    """Turn yt-dlp's info into a VideoInfo, refusing playlists, live videos and long ones."""
     if info.get("_type") == "playlist":
         raise LookupFailed("That's a playlist; paste the link of one video.")
     if info.get("is_live") or info.get("live_status") in ("is_live", "is_upcoming"):
@@ -166,7 +176,7 @@ def to_video_info(url: str, info: dict[str, Any]) -> VideoInfo:
     duration = int(info.get("duration") or 0)
     if duration > MAX_DURATION:
         raise LookupFailed(f"That video is {duration // 3600} hours long; the limit is 6.")
-    tags = [t for t in (info.get("tags") or []) if isinstance(t, str)][:10]
+    tags = [tag for tag in (info.get("tags") or []) if isinstance(tag, str)][:10]
     title = (info.get("title") or info.get("id") or "Untitled").strip()
     thumb = info.get("thumbnail") or ""
     return VideoInfo(

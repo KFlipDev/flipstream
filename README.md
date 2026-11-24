@@ -15,6 +15,25 @@ Failures: network errors and an unreachable share are retried by RQ up to 3 time
 
 The image installs the newest yt-dlp at build time; YouTube changes often, so a stale yt-dlp is the most likely cause of a failed download.
 
+## How the code is laid out
+
+Everything is in `src/flipstream/`. Start with `app.py` for the web side and `jobs.py` for the worker side.
+
+| File | What it holds |
+|---|---|
+| `app.py` | The web app. `create_app()` at the bottom builds it. Above it are the access check and one function per page. |
+| `auth.py` | The Cloudflare Access token check. |
+| `config.py` | Settings read from environment variables. |
+| `youtube.py` | The yt-dlp side: URL check, metadata lookup, and which errors get a retry. |
+| `jobs.py` | The job. `enqueue()` is called by the web app. `process()` is what the worker runs: `run()` handles failures and `_run_steps()` lists the steps (download, encode, save). `view()` is what the job page reads. |
+| `media.py` | The ffmpeg commands, the MP3 file name, and the copy to the share. |
+| `worker.py` | Starts the RQ worker. |
+| `templates/` | The HTML pages. |
+
+A request goes `app.py` → `youtube.py` (lookup) → `jobs.enqueue()`. The worker then picks the job up: `jobs.process()` → `youtube.py` and `media.py`.
+
+The code follows the readability rules in the `code-style` skill: a summary on every file and function, full-word names, functions of 40 lines or less.
+
 ## How it ships
 
 - **Pull request:** `ruff`, `pytest` and `docker build` on GitHub-hosted runners. All three must pass before a merge; push protection blocks commits that contain secrets.

@@ -1,3 +1,5 @@
+"""URL check, genre guess, video info rules and which errors get a retry."""
+
 import pytest
 from yt_dlp.networking.exceptions import HTTPError, TransportError
 from yt_dlp.utils import DownloadError, ExtractorError
@@ -41,7 +43,7 @@ def test_genre_from_tags_then_title():
     assert youtube.guess_genre(["housewarming"], "party") == ""
 
 
-def info(**kw):
+def info(**overrides):
     base = {
         "id": "abc",
         "title": " Sunset Mix ",
@@ -52,13 +54,18 @@ def info(**kw):
         "thumbnail": "https://i.ytimg.com/vi/abc/maxresdefault.jpg",
         "webpage_url": "https://www.youtube.com/watch?v=abc",
     }
-    return base | kw
+    return base | overrides
 
 
 def test_video_info_prefill():
-    v = youtube.to_video_info("u", info())
-    assert (v.title, v.artist, v.genre, v.duration) == ("Sunset Mix", "DJ K", "House", 7471)
-    assert v.thumbnail.startswith("https://")
+    video = youtube.to_video_info("u", info())
+    assert (video.title, video.artist, video.genre, video.duration) == (
+        "Sunset Mix",
+        "DJ K",
+        "House",
+        7471,
+    )
+    assert video.thumbnail.startswith("https://")
 
 
 @pytest.mark.parametrize(
@@ -122,7 +129,7 @@ def test_lookup_shows_yt_dlp_message(monkeypatch):
         def __enter__(self):
             return self
 
-        def __exit__(self, *a):
+        def __exit__(self, *args):
             return False
 
         def extract_info(self, url, download):

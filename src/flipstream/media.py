@@ -21,6 +21,8 @@ class EncodeFailed(Exception):
 
 @dataclass(frozen=True)
 class Tags:
+    """The ID3 tags written into the MP3."""
+
     title: str
     artist: str
     genre: str
@@ -40,6 +42,10 @@ def mp3_name(title: str) -> str:
 
 
 def _run(cmd: list[str], on_line: Callable[[str], None] | None = None) -> None:
+    """Run ffmpeg and raise EncodeFailed if it exits with an error.
+
+    on_line is called with each line ffmpeg prints, which is how progress is read.
+    """
     proc = subprocess.Popen(  # noqa: S603 - fixed argv, no shell
         cmd,
         stdin=subprocess.DEVNULL,

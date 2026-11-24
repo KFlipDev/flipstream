@@ -16,6 +16,7 @@ from .jobs import QUEUE
 
 
 def main() -> None:
+    """Connect to Redis and work the queue until the process is stopped."""
     fmt = "%(asctime)s %(levelname)s %(name)s: %(message)s"
     logging.basicConfig(level=logging.INFO, format=fmt)
     settings = Settings.from_env()

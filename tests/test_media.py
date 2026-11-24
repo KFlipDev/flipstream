@@ -1,3 +1,5 @@
+"""File names, the ffmpeg command, and a real encode when ffmpeg is installed."""
+
 import json
 import subprocess
 
@@ -79,9 +81,13 @@ def test_real_encode_embeds_tags_and_square_cover(tmp_path):
             text=True,
         ).stdout
     )
-    t = probe["format"]["tags"]
-    assert (t["title"], t["artist"], t["genre"]) == ("Sunset · Mix", "DJ K", "House")
-    streams = {s["codec_type"]: s for s in probe["streams"]}
+    file_tags = probe["format"]["tags"]
+    assert (file_tags["title"], file_tags["artist"], file_tags["genre"]) == (
+        "Sunset · Mix",
+        "DJ K",
+        "House",
+    )
+    streams = {stream["codec_type"]: stream for stream in probe["streams"]}
     assert streams["audio"]["codec_name"] == "mp3"
     pic = streams["video"]
     assert pic["disposition"]["attached_pic"] == 1

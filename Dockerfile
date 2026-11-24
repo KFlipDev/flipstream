@@ -1,7 +1,7 @@
 # Flipstream image: web (uvicorn) and worker (python -m flipstream.worker) share it.
 FROM denoland/deno:bin-2.9.8 AS deno
 
-FROM python:3.12-slim
+FROM python:3.12-slim AS app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -30,6 +30,18 @@ RUN pip install . \
 # a new one even when the layers above come from cache.
 ARG YTDLP_VERSION=
 RUN pip install --upgrade "yt-dlp[default]${YTDLP_VERSION:+==$YTDLP_VERSION}"
+
+# Tests: CI's test job builds this stage on its own (target: test), so pytest
+# runs with the image's ffmpeg, which comes from the layer cache instead of an
+# apt-get download on every run. The image itself is built from the last stage
+# and never contains the tests or the dev tools.
+FROM app AS test
+COPY tests ./tests
+RUN pip install ".[dev]" \
+ && pytest -q -p no:cacheprovider
+
+# The image that ships.
+FROM app
 
 # Set by CI to the image tag (sha-xxxxxxx or vX.Y.Z); /healthz reports it so the
 # deploy job can tell the new image is the one answering.

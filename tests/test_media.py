@@ -29,11 +29,20 @@ def test_mp3_name_length_capped():
     assert len(name.encode()) <= media.MAX_NAME_BYTES + 4
 
 
-def test_encode_cmd_v0_with_cover_and_tags(tmp_path):
-    tags = media.Tags(title="T", artist="A", genre="House", comment="C", year="2026")
-    cmd = media.encode_cmd(tmp_path / "a.webm", tmp_path / "c.jpg", tags, tmp_path / "o.mp3")
+def test_encode_cmd_is_v0_audio_only(tmp_path):
+    cmd = media.encode_cmd(tmp_path / "a.webm", tmp_path / "o.mp3")
     joined = " ".join(cmd)
     assert "-c:a libmp3lame -q:a 0" in joined
+    assert "-progress pipe:1" in joined
+    # No cover in this pass: it would take over ffmpeg's progress (DEV-53).
+    assert "-map 0:a:0" in joined and "1:v:0" not in joined
+
+
+def test_tag_cmd_copies_audio_and_adds_cover_and_tags(tmp_path):
+    tags = media.Tags(title="T", artist="A", genre="House", comment="C", year="2026")
+    cmd = media.tag_cmd(tmp_path / "a.mp3", tmp_path / "c.jpg", tags, tmp_path / "o.mp3")
+    joined = " ".join(cmd)
+    assert "-c copy" in joined
     assert "-disposition:v:0 attached_pic" in joined
     assert "-id3v2_version 3" in joined
     for metadata in ("title=T", "artist=A", "genre=House", "comment=C", "date=2026"):
@@ -84,6 +93,7 @@ def test_real_encode_embeds_tags_and_square_cover(tmp_path):
     assert pic["disposition"]["attached_pic"] == 1
     assert pic["width"] == pic["height"] == 720
     assert seen and seen[-1] > 0.9
+    assert not list(tmp_path.glob("*.untagged.mp3"))
 
 
 @needs_ffmpeg

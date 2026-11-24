@@ -1,3 +1,5 @@
+"""File names, the ffmpeg command, and a real encode when ffmpeg is installed."""
+
 import json
 import subprocess
 
@@ -34,8 +36,8 @@ def test_encode_cmd_v0_with_cover_and_tags(tmp_path):
     assert "-c:a libmp3lame -q:a 0" in joined
     assert "-disposition:v:0 attached_pic" in joined
     assert "-id3v2_version 3" in joined
-    for kv in ("title=T", "artist=A", "genre=House", "comment=C", "date=2026"):
-        assert kv in cmd
+    for metadata in ("title=T", "artist=A", "genre=House", "comment=C", "date=2026"):
+        assert metadata in cmd
 
 
 def test_copy_with_progress_renames_at_the_end(tmp_path):
@@ -70,9 +72,13 @@ def test_real_encode_embeds_tags_and_square_cover(tmp_path):
             text=True,
         ).stdout
     )
-    t = probe["format"]["tags"]
-    assert (t["title"], t["artist"], t["genre"]) == ("Sunset · Mix", "DJ K", "House")
-    streams = {s["codec_type"]: s for s in probe["streams"]}
+    file_tags = probe["format"]["tags"]
+    assert (file_tags["title"], file_tags["artist"], file_tags["genre"]) == (
+        "Sunset · Mix",
+        "DJ K",
+        "House",
+    )
+    streams = {stream["codec_type"]: stream for stream in probe["streams"]}
     assert streams["audio"]["codec_name"] == "mp3"
     pic = streams["video"]
     assert pic["disposition"]["attached_pic"] == 1

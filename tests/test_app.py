@@ -1,3 +1,5 @@
+"""Access check: who gets in, with which token, and what stays open."""
+
 import time
 
 import fakeredis
@@ -36,14 +38,14 @@ def token(key, **claims) -> str:
 @pytest.fixture
 def client(keys):
     good, _ = keys
-    verifier = AccessVerifier(TEAM, AUD, key_resolver=lambda _t: good.public_key())
+    verifier = AccessVerifier(TEAM, AUD, key_resolver=lambda _token: good.public_key())
     return TestClient(create_app(settings(), verifier, conn=fakeredis.FakeRedis()))
 
 
 def test_healthz_is_open_and_reports_version(client):
-    r = client.get("/healthz")
-    assert r.status_code == 200
-    body = r.json()
+    response = client.get("/healthz")
+    assert response.status_code == 200
+    body = response.json()
     assert body["status"] == "ok"
     assert body["version"] == "sha-test123"
     assert body["redis"] == "ok"
@@ -55,10 +57,10 @@ def test_home_without_token_is_forbidden(client):
 
 
 def test_home_with_valid_token_shows_email_and_version(client, keys):
-    r = client.get("/", headers={HEADER: token(keys[0])})
-    assert r.status_code == 200
-    assert "kevin@example.com" in r.text
-    assert "sha-test123" in r.text
+    response = client.get("/", headers={HEADER: token(keys[0])})
+    assert response.status_code == 200
+    assert "kevin@example.com" in response.text
+    assert "sha-test123" in response.text
 
 
 @pytest.mark.parametrize(
@@ -88,16 +90,18 @@ def test_hs256_token_is_forbidden(client):
 
 
 def test_missing_access_settings_fail_closed():
-    c = TestClient(create_app(settings(access_aud="", team_domain=""), conn=fakeredis.FakeRedis()))
-    assert c.get("/").status_code == 503
-    assert c.get("/healthz").status_code == 200
+    client = TestClient(
+        create_app(settings(access_aud="", team_domain=""), conn=fakeredis.FakeRedis())
+    )
+    assert client.get("/").status_code == 503
+    assert client.get("/healthz").status_code == 200
 
 
 def test_auth_off_for_local_development():
-    c = TestClient(create_app(settings(auth_mode="off"), conn=fakeredis.FakeRedis()))
-    r = c.get("/")
-    assert r.status_code == 200
-    assert "local development" in r.text
+    client = TestClient(create_app(settings(auth_mode="off"), conn=fakeredis.FakeRedis()))
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "local development" in response.text
 
 
 def test_verifier_needs_both_settings():

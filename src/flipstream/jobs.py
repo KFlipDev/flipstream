@@ -35,11 +35,13 @@ STATES = ["queued", "downloading", "encoding", "saving", "done", "failed"]
 
 
 class ShareUnavailable(youtube.TransientError):
-    pass
+    """The SMB share can't be written to right now; worth a retry."""
 
 
 @dataclass
 class JobRequest:
+    """What the review form sends to the worker for one mix."""
+
     url: str
     title: str
     artist: str
@@ -50,10 +52,12 @@ class JobRequest:
 
 
 def queue(conn: Redis) -> Queue:
+    """Return the RQ queue that the web app fills and the worker empties."""
     return Queue(QUEUE, connection=conn)
 
 
 def enqueue(conn: Redis, req: JobRequest) -> Job:
+    """Put a job on the queue, with its retry rules and how long its record is kept."""
     job = queue(conn).enqueue(
         process,
         asdict(req),
@@ -78,6 +82,7 @@ class Reporter:
         self._last = 0.0
 
     def state(self, state: str, **extra: Any) -> None:
+        """Move the job to a new state and clear the progress of the last one."""
         if not self.job:
             return
         self.job.meta.update({"state": state, "progress": None, **extra})
@@ -85,6 +90,7 @@ class Reporter:
         self._last = time.monotonic()
 
     def progress(self, value: dict[str, Any] | float, force: bool = False) -> None:
+        """Save a progress value, unless one was saved less than a second ago."""
         if not self.job:
             return
         now = time.monotonic()
@@ -94,14 +100,24 @@ class Reporter:
         self.job.save_meta()
         self._last = now
 
+    def percent(self, fraction: float) -> None:
+        """Save progress given as a fraction from 0.0 to 1.0, as a whole percent."""
+        self.progress(round(fraction * 100))
+
 
 def _download(url: str, scratch: Path, report: Reporter) -> tuple[Path, Path | None, dict]:
-    def hook(d: dict[str, Any]) -> None:
-        if d.get("status") == "downloading":
-            total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
+    """Download the best audio and the thumbnail into the scratch folder.
+
+    Returns the audio file, the thumbnail file if there is one, and yt-dlp's info.
+    """
+
+    def hook(update: dict[str, Any]) -> None:
+        """Report megabytes done and total. yt-dlp calls this as the download runs."""
+        if update.get("status") == "downloading":
+            total = update.get("total_bytes") or update.get("total_bytes_estimate") or 0
             report.progress(
                 {
-                    "done_mb": round((d.get("downloaded_bytes") or 0) / 1e6, 1),
+                    "done_mb": round((update.get("downloaded_bytes") or 0) / 1e6, 1),
                     "total_mb": round(total / 1e6, 1),
                 }
             )
@@ -119,11 +135,16 @@ def _download(url: str, scratch: Path, report: Reporter) -> tuple[Path, Path | N
     youtube.to_video_info(url, info)  # same checks as the form (playlist, live, length)
     audio = Path(info["requested_downloads"][0]["filepath"])
     images = (".jpg", ".jpeg", ".webp", ".png")
-    thumbs = [p for p in scratch.iterdir() if p.suffix.lower() in images]
+    thumbs = [path for path in scratch.iterdir() if path.suffix.lower() in images]
     return audio, (thumbs[0] if thumbs else None), info
 
 
 def _check_share(settings: Settings) -> Path:
+    """Return the output folder after proving it can be written to.
+
+    Writes and deletes a small test file, so a share that is down fails here
+    with a clear message and not halfway through the copy.
+    """
     try:
         out = settings.output_dir
         out.mkdir(parents=True, exist_ok=True)
@@ -143,51 +164,69 @@ def _fail_now(job: Job | None, message: str) -> None:
         job.save_meta()
 
 
+def _fetch_audio(url: str, scratch: Path, report: Reporter) -> tuple[Path, Path | None, dict]:
+    """Download the audio, sorting a yt-dlp error into "retry" or "fail now"."""
+    try:
+        return _download(url, scratch, report)
+    except DownloadError as exc:
+        msg = youtube.clean_message(exc.msg or str(exc))
+        if youtube.is_transient(exc):
+            raise youtube.TransientError(msg) from exc
+        raise youtube.LookupFailed(msg) from exc
+
+
+def _save_to_share(mp3: Path, title: str, settings: Settings, report: Reporter) -> str:
+    """Copy the MP3 to the share and return its file name."""
+    out_dir = _check_share(settings)
+    name = media.mp3_name(title)
+    try:
+        media.copy_with_progress(mp3, out_dir / name, report.percent)
+    except OSError as exc:
+        raise ShareUnavailable(f"share unreachable: {exc.strerror or exc}") from exc
+    return name
+
+
+def _run_steps(
+    req: JobRequest, settings: Settings, scratch: Path, report: Reporter
+) -> dict[str, Any]:
+    """Download, encode and save one mix. Returns the file name and its size."""
+    report.state("downloading", message=None)
+    audio, thumb, info = _fetch_audio(req.url, scratch, report)
+
+    report.state("encoding")
+    cover = media.square_cover(thumb, scratch / "cover.jpg") if thumb else None
+    tags = media.Tags(
+        title=req.title,
+        artist=req.artist,
+        genre=req.genre,
+        comment=req.description[:1000],
+        year=req.year or str(info.get("upload_date") or "")[:4],
+    )
+    duration = float(info.get("duration") or 0)
+    mp3 = media.encode_mp3(audio, cover, tags, scratch / "out.mp3", duration, report.percent)
+
+    report.state("saving")
+    name = _save_to_share(mp3, req.title, settings, report)
+
+    size_mb = round(mp3.stat().st_size / 1e6, 1)
+    report.state("done", filename=name, size_mb=size_mb, message=None)
+    log.info("saved %s (%s MB)", name, size_mb)
+    return {"filename": name, "size_mb": size_mb}
+
+
 def run(req: JobRequest, settings: Settings, job: Job | None = None) -> dict[str, Any]:
+    """Run one job in a fresh scratch folder and record how it ended.
+
+    The steps are in _run_steps. This function decides what a failure means:
+    a TransientError is raised again so RQ retries, anything else fails at once.
+    The scratch folder is deleted either way.
+    """
     report = Reporter(job)
     scratch = settings.scratch_dir / (job.id if job else "local")
     shutil.rmtree(scratch, ignore_errors=True)
     scratch.mkdir(parents=True)
     try:
-        report.state("downloading", message=None)
-        try:
-            audio, thumb, info = _download(req.url, scratch, report)
-        except DownloadError as exc:
-            msg = youtube.clean_message(exc.msg or str(exc))
-            if youtube.is_transient(exc):
-                raise youtube.TransientError(msg) from exc
-            raise youtube.LookupFailed(msg) from exc
-
-        report.state("encoding")
-        cover = media.square_cover(thumb, scratch / "cover.jpg") if thumb else None
-        tags = media.Tags(
-            title=req.title,
-            artist=req.artist,
-            genre=req.genre,
-            comment=req.description[:1000],
-            year=req.year or str(info.get("upload_date") or "")[:4],
-        )
-        mp3 = media.encode_mp3(
-            audio,
-            cover,
-            tags,
-            scratch / "out.mp3",
-            float(info.get("duration") or 0),
-            lambda f: report.progress(round(f * 100)),
-        )
-
-        report.state("saving")
-        out_dir = _check_share(settings)
-        name = media.mp3_name(req.title)
-        try:
-            media.copy_with_progress(mp3, out_dir / name, lambda f: report.progress(round(f * 100)))
-        except OSError as exc:
-            raise ShareUnavailable(f"share unreachable: {exc.strerror or exc}") from exc
-
-        size_mb = round(mp3.stat().st_size / 1e6, 1)
-        report.state("done", filename=name, size_mb=size_mb, message=None)
-        log.info("saved %s (%s MB)", name, size_mb)
-        return {"filename": name, "size_mb": size_mb}
+        return _run_steps(req, settings, scratch, report)
     except youtube.TransientError as exc:
         # Leave retries on; the page shows the message while RQ waits.
         if job:
@@ -214,6 +253,8 @@ def process(req: dict[str, Any]) -> dict[str, Any]:
 
 @dataclass
 class JobView:
+    """What the job page shows about one job."""
+
     id: str
     state: str
     title: str
@@ -234,6 +275,11 @@ class JobView:
 
 
 def view(conn: Redis, job_id: str) -> JobView | None:
+    """Return what the job page needs, or None if there is no such job.
+
+    The state comes from two places: the meta the worker writes, and RQ's own
+    status, which wins when the job has ended or is waiting for a retry.
+    """
     try:
         job = Job.fetch(job_id, connection=conn)
     except Exception:  # NoSuchJobError, or an id that isn't one
@@ -242,7 +288,7 @@ def view(conn: Redis, job_id: str) -> JobView | None:
     status = job.get_status(refresh=True)
     state = meta.get("state", "queued")
     retries_left = job.retries_left if job.retries_left is not None else RETRY.max
-    v = JobView(
+    job_view = JobView(
         id=job.id,
         state=state,
         title=meta.get("title") or job.description or "",
@@ -253,20 +299,21 @@ def view(conn: Redis, job_id: str) -> JobView | None:
         attempt=RETRY.max - retries_left + 1,
     )
     if status in (JobStatus.FAILED, JobStatus.STOPPED, JobStatus.CANCELED):
-        v.state = "failed"
-        if not v.message:
-            v.message = _last_line(job)
+        job_view.state = "failed"
+        if not job_view.message:
+            job_view.message = _last_line(job)
     elif status == JobStatus.FINISHED:
-        v.state = "done"
-    elif status in (JobStatus.SCHEDULED, JobStatus.QUEUED) and v.attempt > 1:
-        v.state, v.retry_wait = "queued", True
-    return v
+        job_view.state = "done"
+    elif status in (JobStatus.SCHEDULED, JobStatus.QUEUED) and job_view.attempt > 1:
+        job_view.state, job_view.retry_wait = "queued", True
+    return job_view
 
 
 def _last_line(job: Job) -> str:
+    """Return the last line of the job's error traceback, which names the error."""
     try:
         exc = job.latest_result().exc_string if job.latest_result() else ""
     except Exception:
         exc = ""
-    lines = [ln for ln in (exc or "").strip().splitlines() if ln.strip()]
+    lines = [line for line in (exc or "").strip().splitlines() if line.strip()]
     return lines[-1] if lines else "failed"

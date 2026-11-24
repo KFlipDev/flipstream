@@ -21,7 +21,14 @@ class AccessDenied(Exception):
 
 
 class AccessVerifier:
+    """Checks the Access token on a request against Cloudflare's public keys."""
+
     def __init__(self, team_domain: str, aud: str, key_resolver: KeyResolver | None = None):
+        """Set up the check for one Access application.
+
+        aud is the application's audience tag. key_resolver returns the public key
+        for a token; the default fetches Cloudflare's keys, the tests pass their own.
+        """
         if not team_domain or not aud:
             raise ValueError("CF_TEAM_DOMAIN and CF_ACCESS_AUD must both be set")
         self.issuer = f"https://{team_domain}"
@@ -35,6 +42,7 @@ class AccessVerifier:
         self._resolve_key = key_resolver
 
     def verify(self, token: str | None) -> dict[str, Any]:
+        """Return the token's claims (email and so on), or raise AccessDenied."""
         if not token:
             raise AccessDenied("missing Access token")
         try:

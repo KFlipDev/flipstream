@@ -21,6 +21,8 @@ class EncodeFailed(Exception):
 
 @dataclass(frozen=True)
 class Tags:
+    """The ID3 tags written into the MP3."""
+
     title: str
     artist: str
     genre: str
@@ -40,6 +42,10 @@ def mp3_name(title: str) -> str:
 
 
 def _run(cmd: list[str], on_line: Callable[[str], None] | None = None) -> None:
+    """Run ffmpeg and raise EncodeFailed if it exits with an error.
+
+    on_line is called with each line ffmpeg prints, which is how progress is read.
+    """
     proc = subprocess.Popen(  # noqa: S603 - fixed argv, no shell
         cmd,
         stdin=subprocess.DEVNULL,
@@ -83,6 +89,7 @@ def square_cover(thumbnail: Path, out: Path) -> Path:
 
 
 def encode_cmd(audio: Path, cover: Path | None, tags: Tags, out: Path) -> list[str]:
+    """Build the ffmpeg command that makes the tagged MP3, with cover art if there is one."""
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", str(audio)]
     if cover:
         cmd += ["-i", str(cover), "-map", "0:a:0", "-map", "1:v:0", "-c:v", "copy"]
@@ -118,7 +125,13 @@ def encode_mp3(
     duration: float,
     progress: ProgressFn | None = None,
 ) -> Path:
+    """Encode the audio to MP3 and return the output path.
+
+    progress is called with the fraction done, from 0.0 to 1.0.
+    """
+
     def on_line(line: str) -> None:
+        """Turn ffmpeg's "out_time_us=" progress lines into a fraction of the duration."""
         if progress and duration > 0 and line.startswith("out_time_us="):
             try:
                 done = int(line.split("=", 1)[1]) / 1_000_000

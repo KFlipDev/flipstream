@@ -1,3 +1,5 @@
+"""Shared test helpers."""
+
 import shutil
 
 import pytest

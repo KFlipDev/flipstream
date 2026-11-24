@@ -58,13 +58,13 @@ FORM = {
 
 
 def test_paste_page(setup):
-    r = setup[0].get("/")
-    assert r.status_code == 200 and 'name="url"' in r.text
+    response = setup[0].get("/")
+    assert response.status_code == 200 and 'name="url"' in response.text
 
 
 def test_review_prefills_the_form(setup):
-    r = setup[0].post("/review", data={"url": URL})
-    assert r.status_code == 200
+    response = setup[0].post("/review", data={"url": URL})
+    assert response.status_code == 200
     for text in (
         'value="Sunset House Mix"',
         'value="DJ K"',
@@ -75,20 +75,20 @@ def test_review_prefills_the_form(setup):
         "2:04:31",
         "v1.1 · needs SoundCloud Artist Pro",
     ):
-        assert text in r.text
+        assert text in response.text
 
 
 def test_review_shows_yt_dlp_error(setup):
-    r = setup[0].post("/review", data={"url": URL + "missing"})
-    assert r.status_code == 422
-    assert "Video unavailable" in r.text
+    response = setup[0].post("/review", data={"url": URL + "missing"})
+    assert response.status_code == 422
+    assert "Video unavailable" in response.text
 
 
 def test_submit_queues_a_job_and_shows_it(setup):
     client, conn, _ = setup
-    r = client.post("/jobs", data=FORM, follow_redirects=False)
-    assert r.status_code == 303
-    job_id = r.headers["location"].rsplit("/", 1)[1]
+    response = client.post("/jobs", data=FORM, follow_redirects=False)
+    assert response.status_code == 303
+    job_id = response.headers["location"].rsplit("/", 1)[1]
     job = jobs.queue(conn).fetch_job(job_id)
     assert job.args[0]["title"] == "Sunset House Mix"
     assert job.args[0]["tags"] == "house, sunset"
@@ -104,18 +104,21 @@ def test_empty_title_or_foreign_url_refused(setup):
 
 
 def test_redis_down_keeps_the_form(setup, monkeypatch):
-    def down(*a, **k):
+    def down(*args, **kwargs):
         raise redis.ConnectionError("refused")
 
     monkeypatch.setattr(jobs, "enqueue", down)
-    r = setup[0].post("/jobs", data=FORM | {"title": "My edited title"})
-    assert r.status_code == 503
-    assert "(Redis) isn&#39;t answering" in r.text and 'value="My edited title"' in r.text
+    response = setup[0].post("/jobs", data=FORM | {"title": "My edited title"})
+    assert response.status_code == 503
+    assert (
+        "(Redis) isn&#39;t answering" in response.text
+        and 'value="My edited title"' in response.text
+    )
 
 
 def test_cross_site_post_refused(setup):
-    r = setup[0].post("/jobs", data=FORM, headers={"origin": "https://evil.example"})
-    assert r.status_code == 403
+    response = setup[0].post("/jobs", data=FORM, headers={"origin": "https://evil.example"})
+    assert response.status_code == 403
 
 
 def finish(conn, job_id, filename):
